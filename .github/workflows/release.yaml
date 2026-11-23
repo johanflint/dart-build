@@ -1,0 +1,43 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-svp-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Build release-svp from source instead of installing a published version.
+      - name: Checkout release-svp
+        uses: actions/checkout@v4
+        with:
+          repository: johanflint/release-svp
+          ref: main # use a branch name or commit SHA to test something else
+          path: .release-svp
+
+      - name: Build release-svp
+        working-directory: .release-svp
+        run: |
+          npm ci
+          npm run build
+
+      # Tags + creates a GitHub Release if the push just merged a release pull request.
+      - name: Release
+        run: node .release-svp/dist/index.mjs release --repo-url ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} --release-type dart
+
+      # Opens/updates the pull request for the next release.
+      - name: Prepare
+        run: node .release-svp/dist/index.mjs prepare --repo-url ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} --release-type dart
